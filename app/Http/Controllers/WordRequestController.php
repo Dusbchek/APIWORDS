@@ -34,6 +34,56 @@ class WordRequestController extends Controller
         ]);
     }
 
+    public function addCategory(Request $request)
+    {
+        $request->validate([
+            'category_name' => 'required|string|unique:categories,category_name|max:255',
+        ]);
+    
+        $category = \App\Models\Category::create([
+            'category_name' => $request->category_name,
+        ]);
+    
+        return response()->json([
+            'message' => 'Categoría añadida exitosamente.',
+            'category' => $category
+        ]);
+    }
+    
+
+    public function addNewWordWithOptions(Request $request)
+{
+    $request->validate([
+        'word' => 'required|string|max:255',
+        'category_name' => 'required|string|exists:categories,category_name',
+        'options' => 'required|array|min:3',
+        'options.*.option' => 'required|string|max:255',
+        'options.*.is_correct' => 'required|boolean',
+    ]);
+
+    $category = Category::where('category_name', $request->category_name)->first();
+
+    $word = Word::create([
+        'word' => $request->word,
+        'category_id' => $category->id,
+    ]);
+
+    foreach ($request->options as $optionData) {
+        \App\Models\Option::create([
+            'word_id' => $word->id,
+            'option' => $optionData['option'],
+            'is_correct' => $optionData['is_correct'],
+        ]);
+    }
+
+    return response()->json([
+        'message' => 'Palabra y opciones añadidas exitosamente.',
+        'word' => $word->word,
+        'category' => $category->category_name,
+        'options' => $word->options,
+    ]);
+}
+
 
     public function checkWordOption(Request $request)
     {
@@ -86,10 +136,8 @@ class WordRequestController extends Controller
 
     $user = Auth::user();
 
-    // Buscar la categoría
     $category = Category::where('category_name', $request->category_name)->firstOrFail();
 
-    // Obtener una palabra aleatoria de esa categoría
     $word = Word::with('category', 'options')
                 ->where('category_id', $category->id)
                 ->inRandomOrder()
@@ -99,13 +147,11 @@ class WordRequestController extends Controller
         return response()->json(['message' => 'No se encontraron palabras en esta categoría.'], 404);
     }
 
-    // Registrar la solicitud
     WordRequest::create([
         'user_id' => $user->id,
         'word_id' => $word->id,
     ]);
 
-    // Respuesta
     return response()->json([
         'word' => $word->word,
         'category' => $word->category->category_name,
